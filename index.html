@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>中国国债收益率曲线</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+<script src="data.js"></script>
+<style>
+/* ===== CSS Variables ===== */
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-card: #1c2333;
+  --bg-hover: #252d3f;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --border: #30363d;
+  --accent: #58a6ff;
+  --accent-muted: rgba(88, 166, 255, 0.15);
+  --green: #3fb950;
+  --red: #f85149;
+  --orange: #d29922;
+  --chart-today: #58a6ff;
+  --chart-yesterday: rgba(139, 148, 158, 0.6);
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-card: #ffffff;
+  --bg-hover: #f3f4f6;
+  --text-primary: #1f2328;
+  --text-secondary: #656d76;
+  --text-muted: #8c959f;
+  --border: #d0d7de;
+  --accent: #0969da;
+  --accent-muted: rgba(9, 105, 218, 0.1);
+  --green: #1a7f37;
+  --red: #cf222e;
+  --orange: #9a6700;
+  --chart-today: #0969da;
+  --chart-yesterday: rgba(101, 109, 118, 0.4);
+  --shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  transition: background 0.3s, color 0.3s;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ===== Header ===== */
+.header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-left h1 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.header-left .data-date {
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--accent-muted);
+  padding: 2px 10px;
+  border-radius: 12px;
+}
+.header-actions { display: flex; align-items: center; gap: 8px; }
+
+/* ===== Theme Toggle ===== */
+.theme-toggle {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.theme-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.theme-toggle .icon { font-size: 16px; }
+
+/* ===== Data Badge ===== */
+.data-badge {
+  font-size: 12px;
+  color: var(--orange);
+  background: rgba(210, 153, 34, 0.12);
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(210, 153, 34, 0.25);
+}
+
+/* ===== Main Layout ===== */
+.main { max-width: 1280px; margin: 0 auto; padding: 24px; }
+
+/* ===== Chart Card ===== */
+.chart-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+  margin-bottom: 24px;
+}
+.chart-card .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chart-card .card-title { font-size: 16px; font-weight: 600; }
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.chart-legend .legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chart-legend .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.chart-legend .dot.today { background: var(--chart-today); }
+.chart-legend .dot.yesterday { background: var(--chart-yesterday); }
+.chart-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 380px;
+}
+.chart-wrapper canvas { width: 100% !important; height: auto !important; max-height: 420px; }
+
+/* ===== Table Card ===== */
+.table-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.table-card .card-header {
+  padding: 16px 20px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.table-card .card-title { font-size: 16px; font-weight: 600; }
+.card-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+.table-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.copy-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.copy-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.copy-btn.copied { background: var(--green); color: #fff; border-color: var(--green); }
+
+/* ===== Table ===== */
+.table-wrap { overflow-x: auto; padding: 0 20px 20px; margin-top: 12px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+thead th {
+  text-align: right;
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s;
+}
+thead th:hover { color: var(--accent); }
+thead th:first-child { text-align: left; }
+thead th .sort-icon { margin-left: 4px; font-size: 11px; opacity: 0.4; }
+thead th.active .sort-icon { opacity: 1; color: var(--accent); }
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--bg-hover); }
+tbody td {
+  text-align: right;
+  padding: 10px 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+tbody td:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Value colors */
+.val-up { color: var(--red); }
+.val-down { color: var(--green); }
+.val-flat { color: var(--text-muted); }
+.change-badge {
+  display: inline-block;
+  min-width: 52px;
+  text-align: right;
+  font-size: 13px;
+}
+.change-badge .arrow { font-size: 11px; margin-right: 2px; }
+
+/* ===== Footer ===== */
+.footer {
+  max-width: 1280px;
+  margin: 32px auto 0;
+  padding: 20px 24px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.footer p { margin-bottom: 4px; }
+.footer strong { color: var(--text-secondary); }
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .header { padding: 12px 16px; }
+  .header-left h1 { font-size: 17px; }
+  .main { padding: 16px; }
+  .chart-card { padding: 16px; }
+  .chart-wrapper { min-height: 280px; }
+  .chart-wrapper canvas { max-height: 300px; }
+  thead th, tbody td { padding: 8px 8px; font-size: 13px; }
+  .table-wrap { padding: 0 12px 12px; }
+  .chart-legend { font-size: 12px; gap: 10px; }
+}
+@media (max-width: 480px) {
+  .header-left h1 { font-size: 15px; }
+  .header-left .data-date { font-size: 11px; }
+  .chart-card { padding: 12px; }
+  .chart-wrapper { min-height: 220px; }
+  .chart-wrapper canvas { max-height: 240px; }
+  thead th, tbody td { padding: 6px 6px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== Header ===== -->
+<header class="header">
+  <div class="header-left">
+    <h1>中国国债收益率曲线</h1>
+    <span class="data-date" id="dateBadge"></span>
+  </div>
+  <div class="header-actions">
+    <span class="data-badge">&#9888; 模拟参考数据</span>
+    <button class="theme-toggle" id="themeToggle" title="切换主题">
+      <span class="icon" id="themeIcon">&#9790;</span>
+      <span id="themeLabel">深色</span>
+    </button>
+  </div>
+</header>
+
+<!-- ===== Main ===== -->
+<main class="main">
+
+  <!-- Chart Card -->
+  <section class="chart-card">
+    <div class="card-header">
+      <span class="card-title">到期收益率曲线</span>
+      <div class="chart-legend">
+        <span class="legend-item">
+          <span class="dot today"></span>
+          <span id="legendToday">当日</span>
+        </span>
+        <span class="legend-item">
+          <span class="dot yesterday"></span>
+          <span id="legendYesterday">昨日</span>
+        </span>
+      </div>
+    </div>
+    <div class="chart-wrapper">
+      <canvas id="yieldChart"></canvas>
+    </div>
+  </section>
+
+  <!-- Table Card -->
+  <section class="table-card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">关键期限收益率</div>
+        <div class="card-subtitle">点击表头排序 &middot; 日变动 = 当日 &minus; 昨日 (bp)</div>
+      </div>
+      <div class="table-toolbar">
+        <button class="copy-btn" id="copyBtn">&#128203; 复制数据</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-sort="label" class="active">期限 <span class="sort-icon">&#9650;</span></th>
+            <th data-sort="yield">收益率(%) <span class="sort-icon">&#9650;&#9660;</span></th>
+            <th data-sort="daily">日变动(bp) <span class="sort-icon">&#9650;&#9660;</span></th>
+            <th data-sort="monthly">月初变动(bp) <span class="sort-icon">&#9650;&#9660;</span></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== Footer ===== -->
+<footer class="footer">
+  <p><strong>免责声明：</strong>本页面展示的国债收益率数据为模拟参考数据，不构成任何投资建议或金融分析依据。</p>
+  <p><strong>数据说明：</strong>如需接入真实行情，请替换 <code>data.js</code> 中的 <code>bondData.series</code> 数据源。<br>
+     推荐实时数据来源：<a href="https://yield.chinabond.com.cn/" target="_blank" rel="noopener">中国债券信息网</a>
+     &middot; <a href="https://www.worldgovernmentbonds.com/country/china/" target="_blank" rel="noopener">World Government Bonds</a></p>
+  <p>更新日期: 2026-07-16</p>
+</footer>
+
+<script>
+/* ===== Theme ===== */
+(function initTheme() {
+  const saved = localStorage.getItem('bond-theme');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+})();
+
+const themeToggle = document.getElementById('themeToggle');
+const themeIcon = document.getElementById('themeIcon');
+const themeLabel = document.getElementById('themeLabel');
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('bond-theme', theme);
+  themeIcon.textContent = theme === 'dark' ? '\u263E' : '\u2600';
+  themeLabel.textContent = theme === 'dark' ? '\u6DF1\u8272' : '\u6D45\u8272';
+  // Redraw chart with new colors
+  if (window.bondChart) {
+    updateChartColors(window.bondChart);
+    window.bondChart.update();
+  }
+}
+
+themeToggle.addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  setTheme(cur === 'dark' ? 'light' : 'dark');
+});
+
+function getCSS(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+/* ===== Data Helpers ===== */
+function fmt(val, decimals) {
+  if (val === null || val === undefined) return '--';
+  return Number(val).toFixed(decimals || 2);
+}
+
+function changeClass(val) {
+  if (val === null || val === undefined) return 'val-flat';
+  if (val > 0) return 'val-up';
+  if (val < 0) return 'val-down';
+  return 'val-flat';
+}
+
+function changeArrow(val) {
+  if (val === null || val === undefined) return '';
+  if (val > 0) return '\u25B2';
+  if (val < 0) return '\u25BC';
+  return '\u25C6';
+}
+
+/* ===== Date Badge ===== */
+document.getElementById('dateBadge').textContent = bondData.today;
+document.getElementById('legendToday').textContent += ' (' + bondData.today + ')';
+document.getElementById('legendYesterday').textContent += ' (' + bondData.yesterday + ')';
+
+/* ===== Chart ===== */
+const ctx = document.getElementById('yieldChart').getContext('2d');
+const cdata = bondData.toChartDatasets();
+const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+function makeGradient(ctx, chartArea, color) {
+  const grad = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+  const alpha = isDark ? '0.12' : '0.08';
+  grad.addColorStop(0, color + '33');
+  grad.addColorStop(1, color + alpha);
+  return grad;
+}
+
+const bondChart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: cdata.labels,
+    datasets: [
+      {
+        label: '当日 (' + bondData.today + ')',
+        data: cdata.todayValues,
+        borderColor: getCSS('--chart-today'),
+        backgroundColor: getCSS('--chart-today'),
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        pointBackgroundColor: getCSS('--chart-today'),
+        pointBorderColor: getCSS('--bg-card'),
+        pointBorderWidth: 2,
+        fill: true,
+        tension: 0.3
+      },
+      {
+        label: '昨日 (' + bondData.yesterday + ')',
+        data: cdata.yesterdayValues,
+        borderColor: getCSS('--chart-yesterday'),
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        borderDash: [6, 3],
+        pointRadius: 2,
+        pointHoverRadius: 4,
+        pointBackgroundColor: getCSS('--chart-yesterday'),
+        pointBorderColor: 'transparent',
+        fill: false,
+        tension: 0.3
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: isDark ? '#1c2333' : '#ffffff',
+        titleColor: getCSS('--text-primary'),
+        bodyColor: getCSS('--text-secondary'),
+        borderColor: getCSS('--border'),
+        borderWidth: 1,
+        padding: 10,
+        cornerRadius: 6,
+        displayColors: true,
+        boxPadding: 4,
+        callbacks: {
+          label: function(context) {
+            return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + '%';
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: isDark ? 'rgba(48,54,61,0.4)' : 'rgba(208,215,222,0.4)', drawBorder: false },
+        ticks: { color: getCSS('--text-secondary'), font: { size: 11 } }
+      },
+      y: {
+        grid: { color: isDark ? 'rgba(48,54,61,0.4)' : 'rgba(208,215,222,0.4)', drawBorder: false },
+        ticks: {
+          color: getCSS('--text-secondary'),
+          font: { size: 11 },
+          callback: function(val) { return val.toFixed(2) + '%'; }
+        }
+      }
+    }
+  },
+  plugins: [{
+    id: 'gradientFill',
+    beforeDraw: function(chart) {
+      const ctx2 = chart.ctx;
+      const chartArea = chart.chartArea;
+      if (!chartArea) return;
+      const meta = chart.getDatasetMeta(0);
+      if (!meta || !meta.data || meta.data.length < 2) return;
+      const topColor = getCSS('--chart-today');
+      const grad = ctx2.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+      const alpha = isDark ? '0.12' : '0.08';
+      grad.addColorStop(0, topColor + '33');
+      grad.addColorStop(1, topColor + alpha);
+      meta.dataset.options.backgroundColor = grad;
+    }
+  }]
+});
+
+window.bondChart = bondChart;
+
+function updateChartColors(chart) {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const tp = getCSS('--text-secondary');
+  const border = getCSS('--border');
+  const todayColor = getCSS('--chart-today');
+  const yesterdayColor = getCSS('--chart-yesterday');
+
+  chart.data.datasets[0].borderColor = todayColor;
+  chart.data.datasets[0].pointBackgroundColor = todayColor;
+  chart.data.datasets[0].pointBorderColor = getCSS('--bg-card');
+  chart.data.datasets[1].borderColor = yesterdayColor;
+  chart.data.datasets[1].pointBackgroundColor = yesterdayColor;
+
+  chart.options.scales.x.ticks.color = tp;
+  chart.options.scales.y.ticks.color = tp;
+  chart.options.scales.x.grid.color = border + '66';
+  chart.options.scales.y.grid.color = border + '66';
+  chart.options.plugins.tooltip.backgroundColor = dark ? '#1c2333' : '#ffffff';
+  chart.options.plugins.tooltip.titleColor = getCSS('--text-primary');
+  chart.options.plugins.tooltip.bodyColor = tp;
+  chart.options.plugins.tooltip.borderColor = border;
+}
+
+/* ===== Table ===== */
+let sortKey = 'label';
+let sortAsc = true;
+
+function buildTable(data, sortBy, asc) {
+  const tbody = document.getElementById('tableBody');
+  let rows = data.series.map(s => ({
+    label: s.label,
+    yield: s.yield,
+    daily: +((s.yield - s.prevYield) * 100).toFixed(1),
+    monthly: +((s.yield - s.monthStartYield) * 100).toFixed(1)
+  }));
+
+  rows.sort((a, b) => {
+    let va = a[sortBy], vb = b[sortBy];
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return asc ? -1 : 1;
+    if (va > vb) return asc ? 1 : -1;
+    return 0;
+  });
+
+  tbody.innerHTML = rows.map(r => {
+    const dc = changeClass(r.daily);
+    const mc = changeClass(r.monthly);
+    const da = changeArrow(r.daily);
+    const ma = changeArrow(r.monthly);
+    return '<tr>' +
+      '<td>' + r.label + '</td>' +
+      '<td>' + fmt(r.yield, 2) + '</td>' +
+      '<td class="' + dc + '"><span class="change-badge"><span class="arrow">' + da + '</span>' +
+        (r.daily !== null && r.daily !== undefined ? (r.daily > 0 ? '+' : '') + fmt(r.daily, 1) : '--') + '</span></td>' +
+      '<td class="' + mc + '"><span class="change-badge"><span class="arrow">' + ma + '</span>' +
+        (r.monthly !== null && r.monthly !== undefined ? (r.monthly > 0 ? '+' : '') + fmt(r.monthly, 1) : '--') + '</span></td>' +
+      '</tr>';
+  }).join('');
+
+  // Update header active state
+  document.querySelectorAll('thead th').forEach(th => {
+    th.classList.toggle('active', th.dataset.sort === sortBy);
+  });
+}
+
+// Sort click handlers
+document.querySelectorAll('thead th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (key === sortKey) sortAsc = !sortAsc;
+    else { sortKey = key; sortAsc = true; }
+    buildTable(bondData, sortKey, sortAsc);
+  });
+});
+
+buildTable(bondData, 'label', true);
+
+/* ===== Copy Button ===== */
+document.getElementById('copyBtn').addEventListener('click', function() {
+  let text = '期限\t收益率(%)\t日变动(bp)\t月初变动(bp)\n';
+  bondData.series.forEach(s => {
+    const daily = +((s.yield - s.prevYield) * 100).toFixed(1);
+    const monthly = +((s.yield - s.monthStartYield) * 100).toFixed(1);
+    text += s.label + '\t' + fmt(s.yield, 2) + '\t' +
+      (daily > 0 ? '+' : '') + fmt(daily, 1) + '\t' +
+      (monthly > 0 ? '+' : '') + fmt(monthly, 1) + '\n';
+  });
+
+  navigator.clipboard.writeText(text).then(() => {
+    this.textContent = '\u2713 已复制';
+    this.classList.add('copied');
+    setTimeout(() => {
+      this.textContent = '\uD83D\uDCCB 复制数据';
+      this.classList.remove('copied');
+    }, 2000);
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    this.textContent = '\u2713 已复制';
+    this.classList.add('copied');
+    setTimeout(() => {
+      this.textContent = '\uD83D\uDCCB 复制数据';
+      this.classList.remove('copied');
+    }, 2000);
+  });
+});
+
+/* ===== Resize chart on window width change ===== */
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (bondChart) bondChart.resize(); }, 200);
+});
+</script>
+</body>
+</html>
